@@ -1,4 +1,4 @@
-import sys, time, threading, copy, gc
+import sys, time, threading
 import PySixense
 from hid import *
 
@@ -27,23 +27,6 @@ class HydraData(object):
     def righthand(self):
         return self.hand[1]
 
-
-    def recordlefthand(self):
-        while 1:
-            success, data = PySixense.GetNewestData(0)
-            if success == PySixense.Constants.Failure:
-                print("Could not get data of controller {}!".format(0))
-            else:
-                self.hand[0] = data
-
-    def recordrighthand(self):
-        while 1:
-            success, data = PySixense.GetNewestData(1)
-            if success == PySixense.Constants.Failure:
-                print("Could not get data of controller {}!".format(1))
-            else:
-                self.hand[1] = data
-
 class HydraManager(object):
     def __init__(self, controllers=[0,1]):
         # init
@@ -51,16 +34,6 @@ class HydraManager(object):
         time.sleep(1) # sleep until initialization if done
         self.hydra = HydraData(controllers)
         self.recordData()
-        #self.startThreads()
-
-    def startThreads(self):
-        threads = []
-        tleft = threading.Thread(target=self.hydra.recordlefthand)
-        tright = threading.Thread(target=self.hydra.recordrighthand)
-        threads.append(tleft)
-        threads.append(tright)
-        tleft.start()
-        tright.start()
 
     def recordData(self):
         td = threading.Thread(target=self.hydra.getData)
@@ -74,9 +47,10 @@ class HydraManager(object):
                 , total/1000, "Khz", total/1000000, "Mhz"))
 
 class HydraMapping(object):
-    def __init__(self, HM, mapping={'pos':'mouse', 'joystick':'wasd'}):
+    def __init__(self, HM, mapping={'pos':'mouse', 'joystick':'wasd'}, sensitivity=1):
         self.HM = HM # HydraManager
         self.mapping = mapping
+        self.sensitivity = sensitivity
         self.startMotion()
 
     def startMotion(self):
@@ -92,45 +66,42 @@ class HydraMapping(object):
             h_thread.start()
 
     def performMove(self):
-        """performs x,y movements and based on righthand hydra joystick"""
+        """performs x,y movements and based on lefthand hydra joystick"""
         while 1:
-            x = int(self.HM.hydra.righthand.joystick_x)
-            y = int(self.HM.hydra.righthand.joystick_y)
-            trigger = self.HM.hydra.righthand.trigger
+            x = int(self.HM.hydra.lefthand.joystick_x)
+            y = int(self.HM.hydra.lefthand.joystick_y)
+            trigger = self.HM.hydra.lefthand.trigger
             if x < 0:
-                keyPress('a')
-            elif x > 0:
-                pass
-                # (TODO) press d
-
+                keyPress('A')
+            if x > 0:
+                keyPress('D')
             if y > 0:
-                pass
-                # (TODO) press w
-            elif y < 0:
-                pass
-                # (TODO) press s
+                keyPress('W')
+            if y < 0:
+                keyPress('S')
     def performClick(self):
         """performs x,y movements and clicks based on hydra trigger"""
         while 1:
-            x = int(self.HM.hydra.lefthand.pos[0]+800)
-            y = int(self.HM.hydra.lefthand.pos[1]*-1.5+450)
-            trigger = self.HM.hydra.lefthand.trigger
-            if trigger > 0.1:
-                leftClick((x, y), trigger)
-            else:
-                mousePos((x,y))
-
+            trigger = self.HM.hydra.righthand.trigger
+            if trigger > 0:
+                while 1:
+                    self.x = int(640 + self.HM.hydra.righthand.pos[0]/self.sensitivity)
+                    self.y = int(400 - self.HM.hydra.righthand.pos[1]/self.sensitivity)
+                    trigger = self.HM.hydra.righthand.trigger
+                    button = self.HM.hydra.righthand.buttons
+                    leftClick((self.x, self.y), button)
+                    if trigger > 0.5: # Toggle xy righthand motion based on trigger
+                       break
 if __name__ == '__main__':
-    gc.disable()
     HMan = HydraManager() # Initialize RazerHydra threads
-    HMapping = HydraMapping(HMan)
+    HMapping = HydraMapping(HMan, sensitivity=4)
 
     while True:
-        #HMan.samplingRate()
-        #x,y,z = HMan.hydra.lefthand.pos[0], HMan.hydra.lefthand.pos[1], HMan.hydra.lefthand.pos[2] 
+        HMan.samplingRate()
+        #x,y,z = HMan.hydra.righthand.pos[0], HMan.hydra.righthand.pos[1], HMan.hydra.righthand.pos[2] 
         #print("{:.2f} {:.2f} {:.2f}".format(x,y,z))
+        #print(win32api.GetCursorPos())
         #print("{},{}".format(HMan.hydra.lefthand.joystick_x,HMan.hydra.lefthand.joystick_y))
         #print("Button: {} Trigger: {}".format(HMan.hydra.lefthand.buttons, HMan.hydra.lefthand.trigger))
         #print(PySixense.GetNewestData(0).pos)
-        pass
-
+        time.sleep(1)
