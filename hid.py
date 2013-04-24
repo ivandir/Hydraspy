@@ -1,8 +1,3 @@
-'''
-Created on May 14, 2012
-
-@author: indrio
-'''
 import PySixense
 import win32api 
 import win32con
